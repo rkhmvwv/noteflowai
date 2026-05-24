@@ -32,18 +32,18 @@ python run.py
 
 ```
 NoteFlowAI/
-├── run.py               # Точка входа
-├── .env                 # API ключ (не коммитить!)
+├── run.py               
+├── .env                
 ├── requirements.txt
 ├── app/
-│   ├── main.py          # FastAPI приложение, CORS, lifecycle
-│   ├── config.py        # Конфиг с валидацией ключа
-│   ├── api/routes.py    # Эндпоинты: upload, notes, delete
-│   ├── db/storage.py    # JSON хранилище с блокировкой
+│   ├── main.py          
+│   ├── config.py        
+│   ├── api/routes.py    
+│   ├── db/storage.py    
 │   └── services/
-│       ├── transcription.py   # Whisper
-│       └── structuring.py     # GPT-4o с retry
-├── frontend/index.html  # SPA интерфейс
-├── data/                # notes.json (создаётся автоматически)
-└── temp_audio/          # Временные файлы (удаляются после обработки)
+│       ├── transcription.py   
+│       └── structuring.py     
+├── frontend/index.html  
+├── data/                
+└── temp_audio/          
 ```
