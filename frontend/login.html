@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NoteFlow AI — Вход</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --deep:#010528; --mid:#002060; --accent:#004B8E; --bright:#0070CC;
+    --glow:#0099FF; --text:#E8F4FF; --muted:#7EB3D8;
+    --red:#EF4444; --green:#10B981; --border:rgba(0,153,255,0.2);
+    --surface:rgba(0,75,142,0.15);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:'Sora',sans-serif; background:var(--deep); color:var(--text);
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+
+
+  .bg {
+    position:fixed; inset:0; z-index:0;
+    background:
+      radial-gradient(ellipse 70% 60% at 15% 30%, rgba(0,75,142,.55) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 70% at 85% 70%, rgba(0,32,96,.65) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 50% 5%,  rgba(0,153,255,.1) 0%, transparent 50%),
+      var(--deep);
+    animation: bgPulse 8s ease-in-out infinite alternate;
+  }
+  @keyframes bgPulse { from{opacity:1} to{opacity:.85} }
+
+ 
+  .card {
+    position:relative; z-index:1;
+    background:rgba(0,20,80,.45); backdrop-filter:blur(24px);
+    border:1px solid var(--border); border-radius:24px;
+    padding:40px 36px; width:100%; max-width:420px;
+    animation:cardIn .5s cubic-bezier(.34,1.1,.64,1) both;
+  }
+  @keyframes cardIn { from{opacity:0;transform:translateY(24px) scale(.97)} to{opacity:1;transform:none} }
+
+  .logo {
+    font-size:26px; font-weight:700; letter-spacing:-.5px;
+    background:linear-gradient(135deg,#fff 0%,var(--glow) 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    margin-bottom:4px;
+  }
+  .tagline { font-size:13px; color:var(--muted); font-weight:300; margin-bottom:28px; }
+
+
+  .tabs { display:flex; background:rgba(0,32,96,.4); border:1px solid var(--border); border-radius:14px; padding:4px; margin-bottom:24px; gap:4px; }
+  .tab {
+    flex:1; padding:9px; border-radius:10px; border:none;
+    background:none; color:var(--muted); font-family:'Sora',sans-serif;
+    font-size:13px; font-weight:500; cursor:pointer; transition:all .2s;
+  }
+  .tab.active { background:linear-gradient(135deg,#0057A8,#003580); color:#fff; box-shadow:0 2px 12px rgba(0,87,168,.4); }
+
+  .panel { display:none; }
+  .panel.active { display:block; animation:panelIn .3s cubic-bezier(.4,0,.2,1); }
+  @keyframes panelIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+  .field { margin-bottom:14px; }
+  label { display:block; font-size:12px; font-weight:500; color:var(--muted); margin-bottom:5px; }
+  input {
+    width:100%; padding:11px 14px; border-radius:12px;
+    background:rgba(0,32,96,.3); border:1px solid var(--border);
+    color:var(--text); font-family:'Sora',sans-serif; font-size:14px;
+    outline:none; transition:border-color .2s, box-shadow .2s;
+  }
+  input::placeholder { color:rgba(126,179,216,.45); }
+  input:focus { border-color:rgba(0,153,255,.6); box-shadow:0 0 0 3px rgba(0,153,255,.1); }
+  input.error { border-color:rgba(239,68,68,.5); }
+
+
+  .pw-wrap { position:relative; }
+  .pw-toggle {
+    position:absolute; right:12px; top:50%; transform:translateY(-50%);
+    background:none; border:none; color:var(--muted); cursor:pointer;
+    font-size:15px; padding:2px; transition:color .2s;
+  }
+  .pw-toggle:hover { color:var(--text); }
+
+
+  .pw-strength { display:flex; gap:4px; margin-top:6px; }
+  .pw-bar { flex:1; height:3px; border-radius:2px; background:rgba(0,75,142,.3); transition:background .3s; }
+  .pw-bar.weak   { background:#EF4444; }
+  .pw-bar.medium { background:#F59E0B; }
+  .pw-bar.strong { background:#10B981; }
+  .pw-hint { font-size:11px; color:var(--muted); margin-top:4px; }
+
+  .btn-submit {
+    width:100%; padding:13px; border-radius:14px;
+    background:linear-gradient(135deg,#0057A8 0%,#003580 100%);
+    border:none; color:#fff; font-family:'Sora',sans-serif;
+    font-size:14px; font-weight:600; cursor:pointer;
+    box-shadow:0 4px 20px rgba(0,87,168,.45);
+    transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+    margin-top:4px;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .btn-submit:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(0,87,168,.6); }
+  .btn-submit:active { transform:scale(.97); }
+  .btn-submit:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+
+
+  .alert {
+    padding:11px 14px; border-radius:12px; font-size:13px;
+    margin-bottom:14px; line-height:1.5; display:none;
+  }
+  .alert.error   { background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); color:#FCA5A5; }
+  .alert.success { background:rgba(16,185,129,.1); border:1px solid rgba(16,185,129,.3); color:#6EE7B7; }
+  .alert.info    { background:rgba(0,153,255,.1); border:1px solid rgba(0,153,255,.3); color:#93C5FD; }
+  .alert.show    { display:block; animation:alertIn .3s cubic-bezier(.4,0,.2,1); }
+  @keyframes alertIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+
+
+  .divider { display:flex; align-items:center; gap:12px; margin:16px 0; }
+  .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
+  .divider span { font-size:12px; color:var(--muted); }
+
+
+  .link-btn { background:none; border:none; color:var(--glow); font-size:12px; cursor:pointer; font-family:'Sora',sans-serif; padding:0; text-decoration:underline; text-underline-offset:2px; }
+  .link-btn:hover { opacity:.8; }
+
+
+  .spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  .back-btn { display:flex; align-items:center; gap:6px; background:none; border:none; color:var(--muted); font-size:13px; cursor:pointer; font-family:'Sora',sans-serif; margin-bottom:20px; padding:0; transition:color .2s; }
+  .back-btn:hover { color:var(--text); }
+
+
+  .footer { text-align:center; margin-top:20px; font-size:12px; color:var(--muted); line-height:1.6; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<div class="card">
+  <div class="logo">📚 NoteFlow AI</div>
+  <div class="tagline">Лекции → структурированные конспекты с AI</div>
+
+
+  <div class="alert" id="alert"></div>
+
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" onclick="switchTab('login')">Войти</button>
+    <button class="tab" onclick="switchTab('register')">Регистрация</button>
+  </div>
+
+
+  <div class="panel active" id="panel-login">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Пароль</label>
+      <div class="pw-wrap">
+        <input type="password" id="login-password" placeholder="Ваш пароль" autocomplete="current-password">
+        <button class="pw-toggle" type="button" onclick="togglePw('login-password', this)">👁</button>
+      </div>
+    </div>
+    <div style="text-align:right;margin-bottom:14px">
+      <button class="link-btn" onclick="showForgot()">Забыли пароль?</button>
+    </div>
+    <button class="btn-submit" id="btn-login" onclick="doLogin()">
+      Войти
+    </button>
+    <div class="footer">
+      Нет аккаунта? <button class="link-btn" onclick="switchTab('register')">Создайте его</button>
+    </div>
+  </div>
+
+
+  <div class="panel" id="panel-register">
+    <div class="field">
+      <label>Имя</label>
+      <input type="text" id="reg-name" placeholder="Ваше имя" autocomplete="name">
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="reg-email" placeholder="your@email.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Пароль</label>
+      <div class="pw-wrap">
+        <input type="password" id="reg-password" placeholder="Минимум 8 символов + цифра" autocomplete="new-password" oninput="checkStrength(this)">
+        <button class="pw-toggle" type="button" onclick="togglePw('reg-password', this)">👁</button>
+      </div>
+      <div class="pw-strength">
+        <div class="pw-bar" id="bar1"></div>
+        <div class="pw-bar" id="bar2"></div>
+        <div class="pw-bar" id="bar3"></div>
+      </div>
+      <div class="pw-hint" id="pw-hint"></div>
+    </div>
+    <button class="btn-submit" id="btn-register" onclick="doRegister()">
+      Создать аккаунт
+    </button>
+    <div class="footer">
+      Уже есть аккаунт? <button class="link-btn" onclick="switchTab('login')">Войти</button>
+    </div>
+  </div>
+
+
+  <div class="panel" id="panel-forgot">
+    <button class="back-btn" onclick="hideForgot()">← Назад</button>
+    <div style="margin-bottom:16px">
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px">Сброс пароля</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.5">Введите email — пришлём ссылку для сброса</div>
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="forgot-email" placeholder="your@email.com">
+    </div>
+    <button class="btn-submit" id="btn-forgot" onclick="doForgot()">
+      Отправить ссылку
+    </button>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let currentTab = 'login';
+
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'));
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  hideAlert();
+}
+
+function showForgot() {
+  document.getElementById('tabs').style.display = 'none';
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-forgot').classList.add('active');
+  hideAlert();
+}
+
+function hideForgot() {
+  document.getElementById('tabs').style.display = 'flex';
+  switchTab(currentTab === 'forgot' ? 'login' : currentTab);
+}
+
+
+function showAlert(msg, type = 'error') {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = 'alert ' + type + ' show';
+}
+function hideAlert() {
+  document.getElementById('alert').className = 'alert';
+}
+
+
+function togglePw(id, btn) {
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+  btn.textContent = input.type === 'password' ? '👁' : '🙈';
+}
+
+function checkStrength(input) {
+  const v = input.value;
+  let score = 0;
+  if (v.length >= 8) score++;
+  if (/\d/.test(v)) score++;
+  if (/[A-Z]/.test(v) || /[^a-zA-Z0-9]/.test(v)) score++;
+
+  const cls = score === 1 ? 'weak' : score === 2 ? 'medium' : score === 3 ? 'strong' : '';
+  const hint = score === 0 ? '' : score === 1 ? 'Слабый пароль' : score === 2 ? 'Средний пароль' : 'Надёжный пароль ✓';
+  const hints = ['', '', ''];
+  for (let i = 0; i < score; i++) hints[i] = cls;
+
+  ['bar1','bar2','bar3'].forEach((id, i) => {
+    document.getElementById(id).className = 'pw-bar ' + hints[i];
+  });
+  document.getElementById('pw-hint').textContent = hint;
+  document.getElementById('pw-hint').style.color = score === 3 ? '#10B981' : score === 2 ? '#F59E0B' : '#EF4444';
+}
+
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (loading) {
+    btn._text = btn.innerHTML;
+    btn.innerHTML = '<div class="spinner"></div>';
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = btn._text;
+    btn.disabled = false;
+  }
+}
+
+
+async function api(method, path, body) {
+  const res = await fetch(API + '/api/auth/' + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Произошла ошибка');
+  return data;
+}
+
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  if (!email || !password) { showAlert('Заполните все поля'); return; }
+
+  hideAlert();
+  setLoading('btn-login', true);
+  try {
+    await api('POST', 'login', { email, password });
+    showAlert('Входим...', 'success');
+    setTimeout(() => { window.location.href = '/'; }, 500);
+  } catch (e) {
+    showAlert(e.message);
+    setLoading('btn-login', false);
+  }
+}
+
+
+async function doRegister() {
+  const name     = document.getElementById('reg-name').value.trim();
+  const email    = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+
+  if (!name || !email || !password) { showAlert('Заполните все поля'); return; }
+
+  hideAlert();
+  setLoading('btn-register', true);
+  try {
+    const data = await api('POST', 'register', { name, email, password });
+    showAlert(data.message || 'Аккаунт создан! Проверьте почту.', 'success');
+    setLoading('btn-register', false);
+    
+    setTimeout(() => switchTab('login'), 3000);
+  } catch (e) {
+    showAlert(e.message);
+    setLoading('btn-register', false);
+  }
+}
+
+
+async function doForgot() {
+  const email = document.getElementById('forgot-email').value.trim();
+  if (!email) { showAlert('Введите email'); return; }
+
+  hideAlert();
+  setLoading('btn-forgot', true);
+  try {
+    const data = await api('POST', 'forgot', { email });
+    showAlert(data.message, 'info');
+    setLoading('btn-forgot', false);
+  } catch (e) {
+    showAlert(e.message);
+    setLoading('btn-forgot', false);
+  }
+}
+
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('panel-login').classList.contains('active')) doLogin();
+  else if (document.getElementById('panel-register').classList.contains('active')) doRegister();
+  else if (document.getElementById('panel-forgot').classList.contains('active')) doForgot();
+});
+
+
+(async () => {
+  try {
+    const res = await fetch(API + '/api/auth/me', { credentials: 'include' });
+    if (res.ok) window.location.href = '/';
+  } catch (_) {}
+})();
+</script>
+</body>
+</html>

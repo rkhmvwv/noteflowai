@@ -1,0 +1,264 @@
+"""
+Маршруты авторизации:
+
+POST /api/auth/register      — регистрация (email + пароль + имя)
+POST /api/auth/login         — вход
+POST /api/auth/logout        — выход
+GET  /api/auth/me            — текущий пользователь
+GET  /api/auth/verify        — подтверждение email по ссылке из письма
+POST /api/auth/resend-verify — повторная отправка письма
+POST /api/auth/forgot        — запрос сброса пароля
+POST /api/auth/reset         — установка нового пароля
+"""
+
+import re
+import logging
+from fastapi import APIRouter, Depends, Response, Request
+from fastapi import HTTPException
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, EmailStr, field_validator
+
+from app.auth import (
+    hash_password, verify_password, validate_password,
+    create_session_token, get_current_user,
+    create_verify_token, decode_verify_token,
+    create_reset_token, decode_reset_token,
+)
+from app.db.users import (
+    find_by_email, create_user,
+    verify_user_email, update_last_login, update_password,
+)
+from app.services.email_service import (
+    send_verification_email, send_reset_email, send_welcome_email,
+)
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+# ── Схемы запросов ─────────────────────────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        v = v.strip().lower()
+        if not EMAIL_RE.match(v):
+            raise ValueError("Некорректный email")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v):
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("Имя слишком короткое")
+        if len(v) > 50:
+            raise ValueError("Имя слишком длинное")
+        return v
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class ForgotRequest(BaseModel):
+    email: str
+
+
+class ResetRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+# ── Хелпер: ставим cookie ──────────────────────────────────────────────────────
+
+def _set_session_cookie(response: Response, token: str):
+    response.set_cookie(
+        key="session",
+        value=token,
+        httponly=True,        # JS не видит — защита от XSS
+        samesite="lax",
+        max_age=60 * 60 * 24 * 30,   # 30 дней
+        secure=False,         # True в продакшне с HTTPS
+    )
+
+
+
+
+@router.post("/register")
+async def register(body: RegisterRequest, response: Response):
+
+    validate_password(body.password)
+
+
+    existing = await find_by_email(body.email)
+    if existing:
+        raise HTTPException(400, "Этот email уже зарегистрирован")
+
+    
+    password_hash = hash_password(body.password)
+    user = await create_user(body.email, password_hash, body.name)
+
+
+    verify_token = create_verify_token(user["email"])
+    send_verification_email(user["email"], user["name"], verify_token)
+
+    logging.info(f"[REGISTER] {user['email']}")
+
+    return {
+        "status": "ok",
+        "message": "Аккаунт создан. Проверьте почту и подтвердите email.",
+        "email": user["email"],
+        "name": user["name"],
+    }
+
+
+
+
+@router.post("/login")
+async def login(body: LoginRequest, response: Response):
+    email = body.email.strip().lower()
+    user = await find_by_email(email)
+
+
+    if not user or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(401, "Неверный email или пароль")
+
+    if not user["is_verified"]:
+        raise HTTPException(403, "Подтвердите email. Проверьте папку 'Входящие' (и 'Спам').")
+
+   
+    token = create_session_token(user["id"], user["email"], user["name"])
+    _set_session_cookie(response, token)
+
+    await update_last_login(email)
+    logging.info(f"[LOGIN] {email}")
+
+    return {
+        "user_id": user["id"],
+        "email":   user["email"],
+        "name":    user["name"],
+    }
+
+
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie("session")
+    return {"status": "ok"}
+
+
+
+
+@router.get("/me")
+async def me(user: dict = Depends(get_current_user)):
+    """Фронтенд вызывает при загрузке чтобы проверить сессию."""
+    return {
+        "user_id": user["user_id"],
+        "email":   user["email"],
+        "name":    user["name"],
+    }
+
+
+
+
+@router.get("/verify", response_class=HTMLResponse)
+async def verify_email(token: str):
+    """Пользователь кликает на ссылку из письма → открывается эта страница."""
+    email = decode_verify_token(token)   
+
+    user = await find_by_email(email)
+    if not user:
+        raise HTTPException(404, "Пользователь не найден")
+
+    if user["is_verified"]:
+        msg = "Email уже был подтверждён ранее. Вы можете войти."
+    else:
+        await verify_user_email(email)
+        send_welcome_email(email, user["name"])
+        msg = "Email успешно подтверждён! Теперь вы можете войти в аккаунт."
+
+    logging.info(f"[VERIFY] {email}")
+
+    
+    return HTMLResponse(f"""
+    <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Email подтверждён</title>
+    <style>
+      body{{margin:0;padding:0;background:#010528;font-family:sans-serif;
+           display:flex;align-items:center;justify-content:center;min-height:100vh}}
+      .card{{background:rgba(0,32,96,.4);border:1px solid rgba(0,153,255,.2);
+             border-radius:20px;padding:48px 36px;max-width:380px;text-align:center}}
+      h1{{color:#E8F4FF;font-size:22px;margin:0 0 12px}}
+      p{{color:#7EB3D8;font-size:14px;line-height:1.6;margin:0 0 24px}}
+      a{{display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#0057A8,#003580);
+         color:#fff;text-decoration:none;border-radius:12px;font-weight:600}}
+    </style></head><body>
+    <div class="card">
+      <div style="font-size:52px;margin-bottom:16px">✅</div>
+      <h1>Готово!</h1>
+      <p>{msg}</p>
+      <a href="/">Войти в аккаунт</a>
+    </div>
+    </body></html>
+    """)
+
+
+
+
+@router.post("/resend-verify")
+async def resend_verify(body: ForgotRequest):
+    """Повторная отправка письма подтверждения."""
+    email = body.email.strip().lower()
+    user = await find_by_email(email)
+
+    #
+    if user and not user["is_verified"]:
+        token = create_verify_token(email)
+        send_verification_email(email, user["name"], token)
+
+    return {"status": "ok", "message": "Если аккаунт существует — письмо отправлено"}
+
+
+
+
+@router.post("/forgot")
+async def forgot_password(body: ForgotRequest):
+    """Запрос ссылки сброса пароля."""
+    email = body.email.strip().lower()
+    user = await find_by_email(email)
+
+    if user and user["is_verified"]:
+        token = create_reset_token(email)
+        send_reset_email(email, user["name"], token)
+
+   
+    return {"status": "ok", "message": "Если аккаунт найден — ссылка отправлена на почту"}
+
+
+
+
+@router.post("/reset")
+async def reset_password(body: ResetRequest):
+    """Установка нового пароля по токену из письма."""
+    email = decode_reset_token(body.token)
+    validate_password(body.new_password)
+
+    user = await find_by_email(email)
+    if not user:
+        raise HTTPException(404, "Пользователь не найден")
+
+    new_hash = hash_password(body.new_password)
+    await update_password(email, new_hash)
+    logging.info(f"[RESET] Пароль сменён: {email}")
+
+    return {"status": "ok", "message": "Пароль успешно изменён. Войдите с новым паролем."}
